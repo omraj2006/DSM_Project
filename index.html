@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Exam Slot Allocation</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+        }
+
+        input,
+        button {
+            margin: 5px;
+            padding: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Exam Slot Allocation System</h2>
+
+    <!-- Subject Input -->
+    <input type="text" id="subject" placeholder="Enter Subject (e.g. A)">
+    <button onclick="addSubject()">Add Subject</button>
+
+    <br>
+
+    <!-- Conflict Input -->
+    <input type="text" id="sub1" placeholder="Subject 1">
+    <input type="text" id="sub2" placeholder="Subject 2">
+    <button onclick="addConflict()">Add Conflict</button>
+
+    <br><br>
+
+    <button onclick="colorGraph()">Generate Slots</button>
+    <button onclick="clearGraph()">Clear Graph</button>
+
+    <!-- Graph -->
+    <div id="network" style="width: 700px; height: 400px; border:1px solid black;"></div>
+
+    <h3>Slots:</h3>
+    <div id="output"></div>
+
+    <script>
+        let nodes = new vis.DataSet();
+        let edges = new vis.DataSet();
+
+        let subjectMap = {};
+        let idCounter = 0;
+
+        let container = document.getElementById("network");
+        let data = { nodes: nodes, edges: edges };
+        let network = new vis.Network(container, data, {});
+
+        // Add Subject
+        function addSubject() {
+            let sub = document.getElementById("subject").value.trim();
+
+            if (!sub) {
+                alert("Enter subject name!");
+                return;
+            }
+
+            if (subjectMap[sub] !== undefined) {
+                alert("Subject already exists!");
+                return;
+            }
+
+            nodes.add({ id: idCounter, label: sub });
+            subjectMap[sub] = idCounter;
+            idCounter++;
+
+            document.getElementById("subject").value = "";
+        }
+
+        // Add Conflict
+        function addConflict() {
+            let s1 = document.getElementById("sub1").value.trim();
+            let s2 = document.getElementById("sub2").value.trim();
+
+            if (!s1 || !s2) {
+                alert("Enter both subjects!");
+                return;
+            }
+
+            if (s1 === s2) {
+                alert("Same subject conflict not allowed!");
+                return;
+            }
+
+            if (subjectMap[s1] === undefined || subjectMap[s2] === undefined) {
+                alert("Add subjects first!");
+                return;
+            }
+
+            let id1 = subjectMap[s1];
+            let id2 = subjectMap[s2];
+
+            // Prevent duplicate edge
+            let exists = false;
+            edges.forEach(edge => {
+                if (
+                    (edge.from === id1 && edge.to === id2) ||
+                    (edge.from === id2 && edge.to === id1)
+                ) {
+                    exists = true;
+                }
+            });
+
+            if (exists) {
+                alert("Conflict already exists!");
+                return;
+            }
+
+            edges.add({ from: id1, to: id2 });
+
+            document.getElementById("sub1").value = "";
+            document.getElementById("sub2").value = "";
+        }
+
+        // Improved Greedy Coloring (Degree Based)
+        function colorGraph() {
+            let V = idCounter;
+
+            if (V === 0) {
+                alert("Add subjects first!");
+                return;
+            }
+
+            let result = new Array(V).fill(-1);
+
+            // Step 1: Calculate degree
+            let order = [];
+            nodes.forEach(node => {
+                let degree = 0;
+                edges.forEach(edge => {
+                    if (edge.from === node.id || edge.to === node.id)
+                        degree++;
+                });
+                order.push({ id: node.id, degree: degree });
+            });
+
+            // Step 2: Sort by degree (descending)
+            order.sort((a, b) => b.degree - a.degree);
+
+            // Step 3: Assign colors
+            for (let k = 0; k < order.length; k++) {
+                let u = order[k].id;
+
+                let used = new Array(V).fill(false);
+
+                edges.forEach(edge => {
+                    if (edge.from === u && result[edge.to] !== -1)
+                        used[result[edge.to]] = true;
+                    if (edge.to === u && result[edge.from] !== -1)
+                        used[result[edge.from]] = true;
+                });
+
+                let color;
+                for (color = 0; color < V; color++) {
+                    if (!used[color]) break;
+                }
+
+                result[u] = color;
+            }
+
+            let colors = ["red", "green", "blue", "orange", "purple", "cyan", "pink"];
+
+            nodes.forEach(node => {
+                nodes.update({
+                    id: node.id,
+                    color: colors[result[node.id] % colors.length]
+                });
+            });
+
+            // Generate slots
+            let slots = {};
+            result.forEach((c, i) => {
+                if (!slots[c]) slots[c] = [];
+                slots[c].push(nodes.get(i).label);
+            });
+
+            let totalSlots = Object.keys(slots).length;
+
+            let output = "<b>Total Slots Needed: " + totalSlots + "</b><br><br>";
+
+            for (let s in slots) {
+                output += "Slot " + (parseInt(s) + 1) + ": " + slots[s].join(", ") + "<br>";
+            }
+
+            document.getElementById("output").innerHTML = output;
+        }
+
+        // Clear Graph
+        function clearGraph() {
+            nodes.clear();
+            edges.clear();
+            subjectMap = {};
+            idCounter = 0;
+            document.getElementById("output").innerHTML = "";
+        }
+    </script>
+
+</body>
+
+</html>
